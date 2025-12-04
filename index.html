@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Roblox Shirt Generator Fixed</title>
+<title>Roblox Shirt Generator Fixed v2</title>
 <style>
 body{font-family:sans-serif;max-width:1000px;margin:20px auto;padding:10px;}
 h1{font-size:1.3rem;margin-bottom:10px;}
@@ -16,10 +16,10 @@ canvas{border:1px solid #ccc;width:100%;height:auto;}
 </style>
 </head>
 <body>
-<h1>Roblox Shirt Generator Fixed</h1>
+<h1>Roblox Shirt Generator Fixed v2</h1>
 
 <div class="panel">
-  <h3>1) Upload Official Roblox Template PNG</h3>
+  <h3>1) Upload Official Roblox Template</h3>
   <input type="file" id="templateUpload" accept="image/*">
 </div>
 
@@ -71,22 +71,41 @@ const templateUpload = document.getElementById('templateUpload');
 let textures = [];
 let templateImage = null;
 
-// Load template PNG
+// Load template and auto-remove white background
 templateUpload.addEventListener('change', e=>{
   const file = e.target.files[0];
   if(!file) return;
   const img = new Image();
-  img.onload = () => { templateImage = img; alert('Template loaded!'); };
+  img.crossOrigin="anonymous";
+  img.onload = () => {
+    // Create temp canvas to remove white background
+    const temp = document.createElement('canvas');
+    temp.width = img.width; temp.height = img.height;
+    const tctx = temp.getContext('2d');
+    tctx.drawImage(img,0,0);
+    const data = tctx.getImageData(0,0,temp.width,temp.height);
+    for(let i=0;i<data.data.length;i+=4){
+      const r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+      // treat nearly-white as transparent
+      if(r>240 && g>240 && b>240){
+        data.data[i+3] = 0;
+      }
+    }
+    tctx.putImageData(data,0,0);
+    const resultImg = new Image();
+    resultImg.onload = () => { templateImage = resultImg; alert('Template loaded and white removed!'); };
+    resultImg.src = temp.toDataURL();
+  };
   img.src = URL.createObjectURL(file);
 });
 
-// Upload textures
+// Add textures from file
 fileInput.addEventListener('change', e=>{
   const files = Array.from(e.target.files);
-  files.forEach(f => {
+  files.forEach(f=>{
     const img = new Image();
     img.crossOrigin="anonymous";
-    img.onload = () => { textures.push({img, url:f.name}); renderTextureThumbs(); };
+    img.onload = ()=>{ textures.push({img,url:f.name}); renderTextureThumbs(); };
     img.src = URL.createObjectURL(f);
   });
   fileInput.value='';
@@ -98,7 +117,7 @@ addURLBtn.addEventListener('click', ()=>{
   if(!url) return;
   const img = new Image();
   img.crossOrigin="anonymous";
-  img.onload = () => { textures.push({img,url}); renderTextureThumbs(); };
+  img.onload = ()=>{ textures.push({img,url}); renderTextureThumbs(); };
   img.onerror = ()=>{ alert('Failed to load image from URL'); };
   img.src = url;
   urlInput.value='';
@@ -122,31 +141,30 @@ clearBtn.addEventListener('click', ()=>{if(confirm('Clear all textures?')){textu
 
 // Generate shirt
 generateBtn.addEventListener('click', ()=>{
-  if(!templateImage){ alert('Upload a template PNG first'); return; }
+  if(!templateImage){ alert('Upload a template first'); return; }
   if(textures.length===0){ alert('Add at least one texture'); return; }
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // Draw textures first on offscreen canvas
+  // Offscreen canvas for textures
   const off = document.createElement('canvas');
   off.width = canvas.width; off.height = canvas.height;
   const octx = off.getContext('2d');
 
-  const tilesPerArea = parseInt(tilesSelect.value,10);
-
-  for(let ty=0; ty<tilesPerArea; ty++){
-    for(let tx=0; tx<tilesPerArea; tx++){
+  const tiles = parseInt(tilesSelect.value,10);
+  for(let ty=0;ty<tiles;ty++){
+    for(let tx=0;tx<tiles;tx++){
       const tex = textures[Math.floor(Math.random()*textures.length)];
       const img = tex.img;
-      const dw = canvas.width/tilesPerArea;
-      const dh = canvas.height/tilesPerArea;
+      const dw = canvas.width/tiles;
+      const dh = canvas.height/tiles;
       const dx = tx*dw;
       const dy = ty*dh;
 
-      let sx=0, sy=0, sw=img.width, sh=img.height;
+      let sx=0,sy=0,sw=img.width,sh=img.height;
       if(useCropCheck.checked){
-        const cropW = Math.floor(img.width * (0.3 + Math.random()*0.7));
-        const cropH = Math.floor(img.height * (0.3 + Math.random()*0.7));
+        const cropW = Math.floor(img.width*(0.3 + Math.random()*0.7));
+        const cropH = Math.floor(img.height*(0.3 + Math.random()*0.7));
         sx = Math.floor(Math.random()*(img.width - cropW));
         sy = Math.floor(Math.random()*(img.height - cropH));
         sw = cropW; sh = cropH;
@@ -168,10 +186,10 @@ generateBtn.addEventListener('click', ()=>{
     }
   }
 
-  // Draw template as clipping mask
+  // Apply template mask using source-in
   ctx.save();
   ctx.drawImage(templateImage,0,0,canvas.width,canvas.height);
-  ctx.globalCompositeOperation='source-in'; // keep only pixels where template exists
+  ctx.globalCompositeOperation='source-in';
   ctx.drawImage(off,0,0);
   ctx.restore();
 });
@@ -180,7 +198,7 @@ generateBtn.addEventListener('click', ()=>{
 exportBtn.addEventListener('click', ()=>{
   const a = document.createElement('a');
   a.href = canvas.toDataURL('image/png');
-  a.download = 'roblox_shirt.png';
+  a.download='roblox_shirt.png';
   a.click();
 });
 </script>
